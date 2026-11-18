@@ -7,6 +7,7 @@
  */
 
 import { drawStatusIcon, getStatusIconAspect, isVectorIcon } from './status-icons.js';
+import { isAppIcon } from './icon-library.js';
 
 /**
  * 可选状态栏样式。
@@ -441,17 +442,28 @@ export function drawStatusBar(ctx, options) {
         ctx.fillStyle = color;
         ctx.fillText(timeText, device.width / 2, metrics.centerY);
     } else {
+        const leftBoundary = centerCutout ? getCutoutLeftEdge(metrics) : split;
+        let appWidth = 0;
+        for (const target of leftTargets.slice(0, 2)) {
+            const key = toIconKey(target);
+            if (!isAppIcon(key)) break;
+            appWidth += measureIcon(key, assets, metrics.iconHeight) + (appWidth ? gap : 0);
+        }
+        const timeGap = centerCutout && appWidth ? gap * 0.6 : gap * 1.2;
+        const timeX = centerCutout && appWidth
+            ? Math.min(metrics.leftInset, Math.max(8 * device.dpr, leftBoundary - timeWidth - timeGap - appWidth - device.dpr))
+            : metrics.leftInset;
         ctx.textAlign = 'left';
         ctx.fillStyle = color;
-        ctx.fillText(timeText, metrics.leftInset, metrics.centerY);
+        ctx.fillText(timeText, timeX, metrics.centerY);
         drawIconRow(
             ctx,
             metrics.style === 'minimal' ? [] : leftTargets,
-            metrics.leftInset + timeWidth + gap * 1.2,
+            timeX + timeWidth + timeGap,
             metrics,
             assets,
             color,
-            centerCutout ? getCutoutLeftEdge(metrics) : split
+            leftBoundary
         );
     }
 

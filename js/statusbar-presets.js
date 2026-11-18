@@ -1,8 +1,10 @@
 import { getDevicePreset } from './devices.js';
-import { PNG_ICONS } from './icon-library.js';
+import { isAppIcon, PNG_ICONS } from './icon-library.js';
 import { getStatusIcon } from './status-icons.js';
 
 const pngGroups = new Map(PNG_ICONS.map(icon => [icon.key, icon.group]));
+const commonApps = ['iconWechat', 'iconTaobao', 'iconQQ', 'iconDingtalk', 'iconMeituan',
+    'iconBilibili', 'iconDouyin', 'iconXiaohongshu', 'iconAmap', 'iconUnionPay'].filter(isAppIcon);
 const systemOnly = {
     ios: new Set(['vIosSignal', 'vIosDots', 'vAirplay', 'vRotationLock', 'vIosFocus', 'vIosPrivacy']),
     android: new Set(['vSignal', 'vCast', 'vSync', 'vVoLTE', 'vVoWiFi', 'vAndroidDataSaver',
@@ -44,6 +46,12 @@ export function getRandomStatusPreset(device, style, rng = Math.random) {
     preset.right = preset.right.filter(key => wifi ? !/^v(?:[345]G|LTE)$/.test(key) : key !== 'vWifi');
     if (actualStyle === 'classic-ios' && ios && !wifi) preset.left.push('vLTE');
 
+    const apps = compatible(commonApps);
+    const appCount = actualStyle === 'notch' ? 1 : randomInt(1, 2, rng);
+    for (let i = 0; i < appCount && apps.length > 0; i += 1) {
+        preset.left.push(...apps.splice(randomInt(0, apps.length - 1, rng), 1));
+    }
+
     const statuses = compatible(ios
         ? ['Ioslocat', 'Iosbell', 'vIosFocus', 'vAlarm', 'vMoon', 'vBluetooth']
         : ['vAlarm', 'vBluetooth', 'vSilent', 'vNfc', 'vVibrate', 'vAndroidDataSaver',
@@ -51,10 +59,5 @@ export function getRandomStatusPreset(device, style, rng = Math.random) {
     const status = pick(statuses, rng);
     if (status) preset.left.push(status);
 
-    // iOS does not show normal app notification icons in the system bar.
-    if (!ios && rng() < 0.75) {
-        const app = pick(compatible(['iconWechat', 'iconTaobao', 'iconQQ', 'iconDingtalk', 'iconMeituan', 'iconBilibili']), rng);
-        if (app) preset.left.push(app);
-    }
     return preset;
 }

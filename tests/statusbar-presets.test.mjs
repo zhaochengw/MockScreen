@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { existsSync } from 'node:fs';
 import { DEVICES, getDeviceById, getDevicePreset } from '../js/devices.js';
-import { buildStatusIconAssets } from '../js/icon-library.js';
+import { buildStatusIconAssets, PNG_ICONS } from '../js/icon-library.js';
 import { getStatusIcon, STATUS_ICON_GROUPS } from '../js/status-icons.js';
-import { STATUS_BAR_STYLES } from '../js/statusbar.js';
+import { drawStatusBar, getStatusBarMetrics, STATUS_BAR_STYLES } from '../js/statusbar.js';
 import { getRandomStatusPreset, isIconCompatible } from '../js/statusbar-presets.js';
+
+const appIcons = new Set(PNG_ICONS.filter(icon => icon.group === 'app').map(icon => icon.key));
 
 test('system and brand restrictions do not affect generic or custom icons', () => {
     const iphone = getDeviceById('iphone-15-pro-max');
@@ -40,10 +42,40 @@ test('default and randomized presets stay compatible for every device and style 
                 for (const key of keys) assert.ok(isIconCompatible(key, device), `${device.id}/${id}/${key}`);
                 if (id === 'none' || id === 'minimal') assert.equal(keys.length, 0);
             }
-            for (const { right } of presets.slice(1)) {
+            for (const { left, right } of presets.slice(1)) {
                 assert.ok(!right.includes('vWifi') || !right.some(key => /^v(?:[345]G|LTE)$/.test(key)));
+                assert.ok(right.every(key => !appIcons.has(key)));
+                const apps = left.filter(key => appIcons.has(key));
+                if (id !== 'none' && id !== 'minimal') {
+                    assert.ok(apps.length >= 1 && apps.length <= 2, `${device.id}/${id}: ${apps.length} apps`);
+                }
             }
         }
+    }
+});
+
+test('random apps render left of the cutout even with a wide time label', () => {
+    for (const [id, expectedCount] of [['iphone-13-mini', 1], ['iphone-15-pro', 2], ['galaxy-s24', 2]]) {
+        const device = getDeviceById(id);
+        const { left, right } = getRandomStatusPreset(device, 'auto', () => 0.99);
+        const apps = left.filter(key => appIcons.has(key));
+        assert.equal(apps.length, expectedCount, id);
+
+        const drawn = [];
+        const noop = () => {};
+        const context = new Proxy({
+            measureText: () => ({ width: 48 * device.dpr }),
+            drawImage: (image, x, _y, width) => drawn.push({ key: image.key, rightEdge: x + width })
+        }, { get: (target, key) => target[key] ?? noop });
+        const assets = Object.fromEntries(apps.map(key => [key, { key, width: 128, height: 100 }]));
+        drawStatusBar(context, {
+            device, styleId: 'auto', color: '#000', time: '23:59', battery: 80,
+            leftTargets: left.map(key => `${key}Toggle`), rightTargets: right.map(key => `${key}Toggle`), assets
+        });
+        assert.deepEqual(drawn.map(icon => icon.key), apps, id);
+        const { cutout } = getStatusBarMetrics(device, 'auto');
+        const leftBoundary = cutout.type === 'circle' ? cutout.cx - cutout.radius : cutout.x;
+        assert.ok(drawn.every(icon => icon.rightEdge <= leftBoundary), id);
     }
 });
 

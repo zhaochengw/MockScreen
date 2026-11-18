@@ -58,6 +58,12 @@ export const PNG_ICONS = [
     ...DOMESTIC_APPS
 ];
 
+const appIconKeys = new Set(PNG_ICONS.filter(icon => icon.group === 'app').map(icon => icon.key));
+
+export function isAppIcon(key) {
+    return appIconKeys.has(key);
+}
+
 /**
  * 图标分组配置。
  * @type {Array<{id: string, label: string}>}
