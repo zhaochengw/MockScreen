@@ -1,493 +1,438 @@
 /**
  * @file 主应用程序逻辑
  * @description
- * 负责管理模板切换、资源加载、Canvas 绘制以及所有通用 UI 交互。
- * 这是整个图片生成器的核心控制器。
+ * 负责管理机型与状态栏设置、模板切换、资源加载、Canvas 绘制以及所有通用 UI 交互。
  */
 
-// --- 全局变量和 DOM 元素获取 ---
+import { DEVICE_GROUPS, DEFAULT_DEVICE_ID, getDeviceById, getDevicePreset } from './devices.js';
+import { buildStatusIconAssets } from './icon-library.js';
+import { getRandomStatusPreset, randomInt } from './statusbar-presets.js';
+import { randomizePaymentFields } from './payment-random.js';
+import { initializeBankPicker } from './bank-picker.js';
+import {
+    STATUS_BAR_STYLES,
+    resolveStatusBarStyle,
+    getStatusBarMetrics,
+    drawStatusBar,
+    drawStatusBarBackplate
+} from './statusbar.js';
+import {
+    buildStatusBarControlsHTML,
+    initializeStatusBarControls,
+    applyStatusBarPreset,
+    readStatusBarIconTargets,
+    getCustomIconImages
+} from './statusbar-controls.js';
 
-// Canvas 相关元素
+// --- DOM 元素 ---
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-// 主要的 UI 交互元素
 const templateSelect = document.getElementById('template-select');
+const deviceSelect = document.getElementById('device-select');
+const statusBarStyleSelect = document.getElementById('statusbar-style-select');
+const statusBarColorSelect = document.getElementById('statusbar-color-select');
+const batteryChargingCheckbox = document.getElementById('battery-charging');
+const batteryPercentCheckbox = document.getElementById('battery-percent');
+const resetStatusBarBtn = document.getElementById('reset-statusbar-btn');
+const randomStatusBarBtn = document.getElementById('random-statusbar-btn');
+const randomPaymentBtn = document.getElementById('random-payment-btn');
+const deviceInfo = document.getElementById('device-info');
 const downloadBtn = document.getElementById('download-btn');
+const statusbarControlsContainer = document.getElementById('statusbar-controls-container');
+const siteRoot = new URL('../', import.meta.url);
 
-// 模板控制面板的容器。
-// [重要] 使用 let 而不是 const，因为在切换模板时，我们会克隆并替换这个元素以移除旧的事件监听器。
+// 切换模板时会克隆并替换该容器，以移除旧的事件监听器
 let templateControlsContainer = document.getElementById('template-controls-container');
 
-// 用于存储当前活动模板的模块和已加载的图片资源
 let currentTemplateModule = null;
 let currentLoadedAssets = {};
+let batchingControls = false;
 
-
-// --- 全局资源定义 ---
-
-/**
- * @const {object} GLOBAL_ICON_DEFINITIONS
- * @description
- * 定义了所有模板可共用的状态栏图标。
- * [重要] 键名已统一，均不以 "Icon" 结尾，以确保代码能正确匹配。
- */
-const GLOBAL_ICON_DEFINITIONS = {
-    // iOS 风格图标 (键名已修正)
-    Ioslocat: '../icons/Ioslocat{themeSuffix}Icon.png',
-    Iosalarm: '../icons/Iosalarm{themeSuffix}Icon.png',
-    Iosbell: '../icons/IosBell{themeSuffix}Icon.png',
-    Iosuser: '../icons/Iosuser{themeSuffix}Icon.png',
-    Iossleep: '../icons/Iossleep{themeSuffix}Icon.png',
-    Ioswifi: '../icons/IosWifi{themeSuffix}Icon.png',
-    Iosltea: '../icons/Iosltea{themeSuffix}Icon.png',
-    Ioslteb: '../icons/Ioslteb{themeSuffix}Icon.png',
-    Ioslte5Ga: '../icons/Ioslte5Ga{themeSuffix}Icon.png',
-
-    // 其他系统风格图标 (键名已修正)
-    iconchat: '../icons/chat{themeSuffix}Icon.png',
-    iconwifia: '../icons/WifiArrow{themeSuffix}Icon.png',
-    iconlte4Ga: '../icons/lte4Ga{themeSuffix}Icon.png',
-    iconlte4Gb: '../icons/lte4Gb{themeSuffix}Icon.png',
-    iconlte3G: '../icons/lte3G{themeSuffix}Icon.png',
-    iconlte5Gb: '../icons/lte5Gb{themeSuffix}Icon.png',
-    iconPhone: '../icons/Phone{themeSuffix}Icon.png',
-    iconAlipay: '../icons/Alipay{themeSuffix}Icon.png',
-    iconTaobao: '../icons/Taobao{themeSuffix}Icon.png',
-    iconWechat: '../icons/Wechat{themeSuffix}Icon.png',
-    iconWeibo: '../icons/Weibo{themeSuffix}Icon.png',
-    iconZhihu: '../icons/Zhihu{themeSuffix}Icon.png',
-    
-    // 第三方圆角应用图标 (键名原本就是正确的)
-    icon12306: '../icons/radius/12306Icon.png',
-    icon163music: '../icons/radius/163musicIcon.png',
-    iconAlidrive: '../icons/radius/AlidriveIcon.png',
-    iconAtuin: '../icons/radius/AtuinIcon.png',
-    iconBaidu: '../icons/radius/BaiduIcon.png',
-    iconBaidudriveA: '../icons/radius/BaidudriveaIcon.png',
-    iconBaidudriveB: '../icons/radius/BaidudrivebIcon.png',
-    iconBilibili: '../icons/radius/BilibiliIcon.png',
-    iconChrome: '../icons/radius/ChromeIcon.png',
-    iconDoubao: '../icons/radius/DoubaoIcon.png',
-    iconDsvideo: '../icons/radius/DsvideoIcon.png',
-    iconEdge: '../icons/radius/EdgeIcon.png',
-    iconFlclash: '../icons/radius/FlclashIcon.png',
-    iconGoogle: '../icons/radius/GoogleIcon.png',
-    iconGoogleCloud: '../icons/radius/GooglecloudIcon.png',
-    iconGoogledrive: '../icons/radius/GoogledriveIcon.png',
-    iconGooglemap: '../icons/radius/GooglemapIcon.png',
-    iconIptv: '../icons/radius/IptvIcon.png',
-    iconKmplayer: '../icons/radius/KmplayerIcon.png',
-    iconMiwifi: '../icons/radius/MiwifiIcon.png',
-    iconOffice: '../icons/radius/OfficeIcon.png',
-    iconOnedev: '../icons/radius/OnedevIcon.png',
-    iconPalworld: '../icons/radius/PalworldIcon.png'
-};
-
-
-// --- 核心功能函数 ---
-
-/**
- * 生成并返回包含所有状态栏图标控件的 HTML 字符串。
- * 这些控件将被注入到各个模板的控制面板中。
- * @returns {string} 包含图标选择器和隐藏复选框的 HTML 字符串。
- */
-function getGlobalIconControlsHTML() {
-    // 注意：为了代码简洁，这里直接返回了较长的 HTML 字符串。
-    // 在更复杂的应用中，可以考虑使用模板引擎或 DOM API 来构建。
-    return `
-        <div class="input-group">
-            <label>状态栏图标</label>
-            <div class="statusbar-icon-selector is-active-dropzone-container">
-                <div id="left-icons-dropzone" class="icon-sub-dropzone"></div>
-                <div class="icon-spacer" style="flex-grow: 1;"></div>
-                <div id="right-icons-dropzone" class="icon-sub-dropzone"></div>
-            </div>
-        </div>
-        <div class="input-group">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <label style="margin-bottom: 0;">图标库</label>
-                <label class="button-like-label">
-                    + 添加图标
-                    <input type="file" id="custom-icon-upload" accept="image/*" style="display: none;">
-                </label>
-            </div>
-            <div class="statusbar-icon-selector is-available-dropzone" id="available-icons-dropzone">
-                <!-- 图标选项的 HTML 结构保持不变... -->
-                <div class="icon-option icon-Ioslocat" data-target="IoslocatToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Iosalarm" data-target="IosalarmToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Iosbell" data-target="IosbellToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Iosuser" data-target="IosuserToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Iossleep" data-target="IossleepToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Ioswifi" data-target="IoswifiToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Ioslte5Ga" data-target="Ioslte5GaToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Iosltea" data-target="IoslteaToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Ioslteb" data-target="IosltebToggle" data-draggable="true"></div>
-                <div class="icon-option icon-chat" data-target="iconchatToggle" data-draggable="true"></div>
-                <div class="icon-option icon-wifia" data-target="iconwifiaToggle" data-draggable="true"></div>
-                <div class="icon-option icon-lte4Ga" data-target="iconlte4GaToggle" data-draggable="true"></div>
-                <div class="icon-option icon-lte4Gb" data-target="iconlte4GbToggle" data-draggable="true"></div>
-                <div class="icon-option icon-lte3G" data-target="iconlte3GToggle" data-draggable="true"></div>
-                <div class="icon-option icon-lte5Gb" data-target="iconlte5GbToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Phone" data-target="iconPhoneToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Alipay" data-target="iconAlipayToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Taobao" data-target="iconTaobaoToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Wechat" data-target="iconWechatToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Weibo" data-target="iconWeiboToggle" data-draggable="true"></div>
-                <div class="icon-option icon-Zhihu" data-target="iconZhihuToggle" data-draggable="true"></div>
-                <div class="icon-option icon-12306 app-icon" data-target="icon12306Toggle" data-draggable="true"></div>
-                <div class="icon-option icon-163music app-icon" data-target="icon163musicToggle" data-draggable="true"></div>
-                <div class="icon-option icon-alidrive app-icon" data-target="iconAlidriveToggle" data-draggable="true"></div>
-                <div class="icon-option icon-atuin app-icon" data-target="iconAtuinToggle" data-draggable="true"></div>
-                <div class="icon-option icon-baidu app-icon" data-target="iconBaiduToggle" data-draggable="true"></div>
-                <div class="icon-option icon-baidudrivea app-icon" data-target="iconBaidudriveAToggle" data-draggable="true"></div>
-                <div class="icon-option icon-baidudriveb app-icon" data-target="iconBaidudriveBToggle" data-draggable="true"></div>
-                <div class="icon-option icon-bilibili app-icon" data-target="iconBilibiliToggle" data-draggable="true"></div>
-                <div class="icon-option icon-chrome app-icon" data-target="iconChromeToggle" data-draggable="true"></div>
-                <div class="icon-option icon-doubao app-icon" data-target="iconDoubaoToggle" data-draggable="true"></div>
-                <div class="icon-option icon-dsvideo app-icon" data-target="iconDsvideoToggle" data-draggable="true"></div>
-                <div class="icon-option icon-edge app-icon" data-target="iconEdgeToggle" data-draggable="true"></div>
-                <div class="icon-option icon-flclash app-icon" data-target="iconFlclashToggle" data-draggable="true"></div>
-                <div class="icon-option icon-google app-icon" data-target="iconGoogleToggle" data-draggable="true"></div>
-                <div class="icon-option icon-googlecloud app-icon" data-target="iconGoogleCloudToggle" data-draggable="true"></div>
-                <div class="icon-option icon-googledrive app-icon" data-target="iconGoogledriveToggle" data-draggable="true"></div>
-                <div class="icon-option icon-googlemap app-icon" data-target="iconGooglemapToggle" data-draggable="true"></div>
-                <div class="icon-option icon-iptv app-icon" data-target="iconIptvToggle" data-draggable="true"></div>
-                <div class="icon-option icon-kmplayer app-icon" data-target="iconKmplayerToggle" data-draggable="true"></div>
-                <div class="icon-option icon-miwifi app-icon" data-target="iconMiwifiToggle" data-draggable="true"></div>
-                <div class="icon-option icon-office app-icon" data-target="iconOfficeToggle" data-draggable="true"></div>
-                <div class="icon-option icon-onedev app-icon" data-target="iconOnedevToggle" data-draggable="true"></div>
-                <div class="icon-option icon-palworld app-icon" data-target="iconPalworldToggle" data-draggable="true"></div>
-            </div>
-        </div>
-        <!-- 隐藏的复选框，用于真正控制图标的显示状态 -->
-        <input type="checkbox" class="control" data-id="IoslocatToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="IosalarmToggle" checked style="display: none;">
-        <input type="checkbox" class="control" data-id="IosbellToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="IosuserToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="IossleepToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="IoswifiToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="Ioslte5GaToggle" checked style="display: none;">
-        <input type="checkbox" class="control" data-id="IoslteaToggle" checked style="display: none;">
-        <input type="checkbox" class="control" data-id="IosltebToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconchatToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconwifiaToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconlte4GaToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconlte4GbToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconlte3GToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconlte5GbToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconPhoneToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconAlipayToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconTaobaoToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconWechatToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconWeiboToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconZhihuToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="icon12306Toggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="icon163musicToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconAlidriveToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconAtuinToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconBaiduToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconBaidudriveAToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconBaidudriveBToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconBilibiliToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconChromeToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconDoubaoToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconDsvideoToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconEdgeToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconFlclashToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconGoogleToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconGoogleCloudToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconGoogledriveToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconGooglemapToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconIptvToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconKmplayerToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconMiwifiToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconOfficeToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconOnedevToggle" style="display: none;">
-        <input type="checkbox" class="control" data-id="iconPalworldToggle" style="display: none;">
-    `;
+function selectedDevice() {
+    return getDeviceById(deviceSelect.value);
 }
+
+function refreshStatusControls() {
+    const style = resolveStatusBarStyle(selectedDevice(), statusBarStyleSelect.value);
+    randomStatusBarBtn.disabled = !currentTemplateModule || style === 'none';
+}
+
+function batchControlChanges(change) {
+    batchingControls = true;
+    try {
+        change();
+    } finally {
+        batchingControls = false;
+        drawCanvas();
+    }
+}
+
+// --- 初始化下拉选项 ---
+
+/**
+ * 填充机型下拉框（按品牌/系列分组）。
+ */
+function populateDeviceSelect() {
+    DEVICE_GROUPS.forEach(group => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = group.label;
+
+        group.devices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.id;
+            option.textContent = device.name;
+            optgroup.appendChild(option);
+        });
+
+        deviceSelect.appendChild(optgroup);
+    });
+    deviceSelect.value = DEFAULT_DEVICE_ID;
+}
+
+/**
+ * 填充状态栏样式下拉框。
+ */
+function populateStatusBarStyleSelect() {
+    STATUS_BAR_STYLES.forEach(style => {
+        const option = document.createElement('option');
+        option.value = style.id;
+        option.textContent = style.name;
+        statusBarStyleSelect.appendChild(option);
+    });
+    statusBarStyleSelect.value = 'auto';
+}
+
+/**
+ * 更新机型信息提示。
+ */
+function updateDeviceInfo() {
+    const device = getDeviceById(deviceSelect.value);
+    const styleId = resolveStatusBarStyle(device, statusBarStyleSelect.value);
+    const styleName = STATUS_BAR_STYLES.find(style => style.id === styleId);
+    const metrics = getStatusBarMetrics(device, statusBarStyleSelect.value);
+    const barHeight = Math.round(metrics.height / device.dpr);
+    const barUnit = device.platform === 'ios' ? 'pt' : 'dp';
+    deviceInfo.textContent = `${device.width} × ${device.height} px · ${device.dpr}x · ${device.brand} · ${styleName ? styleName.name : styleId} · 状态栏 ${barHeight}${barUnit}`;
+}
+
+// --- 核心功能 ---
 
 /**
  * 异步加载一组图片资源。
- * @param {object} assetsToLoad - 键值对对象，key 为资源名，value 为图片路径。
- * @returns {Promise<object>} 返回一个 Promise，成功时解析为一个包含已加载 Image 对象的键值对。
+ * @param {object} assetsToLoad 键值对：资源名 -> 路径
+ * @returns {Promise<object>}
  */
 function loadAssets(assetsToLoad) {
     if (!assetsToLoad || Object.keys(assetsToLoad).length === 0) {
-        return Promise.resolve({}); // 如果没有资源需要加载，立即返回一个空对象
+        return Promise.resolve({});
     }
 
-    const promises = Object.entries(assetsToLoad).map(([key, src]) => {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve({ key, img });
-            img.onerror = () => reject(new Error(`资源加载失败: ${src}`));
-            img.src = src;
-        });
-    });
+    const promises = Object.entries(assetsToLoad).map(([key, src]) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ key, img });
+        img.onerror = () => reject(new Error(`资源加载失败: ${src}`));
+        img.src = new URL(src, siteRoot).href;
+    }));
 
     return Promise.all(promises).then(results => {
-        const loadedAssets = {};
-        results.forEach(({ key, img }) => {
-            loadedAssets[key] = img;
-        });
-        return loadedAssets;
+        const loaded = {};
+        results.forEach(({ key, img }) => { loaded[key] = img; });
+        return loaded;
     });
 }
 
 /**
- * 核心绘制函数。
- * 负责收集所有用户输入，并调用当前模板的 draw 方法来更新 Canvas。
+ * 收集控制面板上的所有值。
+ * @returns {object}
+ */
+function controlElements(selector) {
+    return [templateControlsContainer, statusbarControlsContainer].flatMap(container => [...container.querySelectorAll(selector)]);
+}
+
+function collectControls() {
+    const controls = {};
+    controlElements('.control').forEach(element => {
+        const id = element.dataset.id;
+        if (!id) return;
+
+        if (element.type === 'file') {
+            if (currentLoadedAssets[id]) controls[id] = currentLoadedAssets[id];
+        } else if (element.type === 'radio') {
+            if (element.checked) controls[id] = element.value;
+        } else {
+            controls[id] = (element.type === 'checkbox') ? element.checked : element.value;
+        }
+    });
+    return controls;
+}
+
+/**
+ * 核心绘制函数：背景 -> 状态栏 -> 模板内容。
+ * 画布尺寸与状态栏按所选机型绘制，模板内容等比缩放到机型分辨率。
  */
 function drawCanvas() {
-    if (!currentTemplateModule) return;
+    if (!currentTemplateModule || batchingControls) return;
 
     const template = currentTemplateModule.template;
     const config = template.config;
+    const device = getDeviceById(deviceSelect.value);
+    const controls = collectControls();
+    const assets = { ...currentLoadedAssets, ...getCustomIconImages() };
 
-    // 设置画布尺寸
-    canvas.width = config.canvasWidth;
-    canvas.height = config.canvasHeight;
+    canvas.width = device.width;
+    canvas.height = device.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, device.width, device.height);
 
-    // 收集所有控制面板上的值
-    const controls = {};
-    document.querySelectorAll('#template-controls-container .control').forEach(el => {
-        const id = el.dataset.id;
-        if (el.type === 'file') {
-            // 对于文件输入，我们使用已加载到内存中的 Image 对象
-            if (currentLoadedAssets[id]) {
-                controls[id] = currentLoadedAssets[id];
-            }
-        } else if (el.type === 'radio') {
-            if (el.checked) {
-                controls[id] = el.value;
-            }
-        } else {
-            controls[id] = (el.type === 'checkbox') ? el.checked : el.value;
-        }
+    // 1. 背景铺满所选机型分辨率
+    if (assets.bg) {
+        ctx.drawImage(assets.bg, 0, 0, device.width, device.height);
+    } else if (template.drawBackdrop) {
+        template.drawBackdrop(ctx, device.width, device.height);
+    } else if (config.colors?.background) {
+        ctx.fillStyle = config.colors.background;
+        ctx.fillRect(0, 0, device.width, device.height);
+    }
+
+    // 2. 状态栏：先抹除背景中预置的状态栏元素，再按机型样式绘制
+    const metrics = getStatusBarMetrics(device, statusBarStyleSelect.value);
+    drawStatusBarBackplate(ctx, assets.bg, device, metrics.height);
+
+    const autoColor = (config.colors && config.colors.statusBar) || '#000000';
+    const colorMap = { dark: '#000000', light: '#FFFFFF' };
+    const color = colorMap[statusBarColorSelect.value] || autoColor;
+
+    const targets = readStatusBarIconTargets(device);
+    drawStatusBar(ctx, {
+        device,
+        styleId: statusBarStyleSelect.value,
+        color,
+        time: controls.time,
+        battery: controls.battery,
+        charging: batteryChargingCheckbox.checked,
+        showBatteryPercent: batteryPercentCheckbox.checked,
+        leftTargets: targets.left,
+        rightTargets: targets.right,
+        assets
     });
 
-    // 调用当前模板的绘制方法
-    template.draw(ctx, config, controls, currentLoadedAssets);
+    // 3. 模板内容：以模板设计尺寸绘制，并缩放到机型分辨率
+    const scaleX = device.width / config.canvasWidth;
+    const scaleY = device.height / config.canvasHeight;
+    ctx.save();
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+    template.draw(ctx, config, controls, assets);
+    ctx.restore();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 /**
- * 为动态添加到页面的控件绑定通用事件监听器。
+ * 为动态添加的控件绑定通用事件。
  */
 function bindControlListeners() {
-    // 为大部分输入控件绑定 'input' 事件，实现实时预览
-    document.querySelectorAll('#template-controls-container .control').forEach(element => {
-        // 文件上传使用 'change' 事件，其他大部分使用 'input'
+    const activeContainer = templateControlsContainer;
+    controlElements('.control').forEach(element => {
         const eventType = (element.type === 'file' || element.type === 'radio') ? 'change' : 'input';
         element.addEventListener(eventType, drawCanvas);
     });
 
-    // 单独处理文件上传的预览逻辑
-    document.querySelectorAll('input[type="file"].control').forEach(element => {
-        element.addEventListener('change', (event) => {
+    // 模板专属的图片上传
+    activeContainer.querySelectorAll('input[type="file"].control').forEach(element => {
+        element.addEventListener('change', event => {
             const file = event.target.files[0];
             const id = element.dataset.id;
-            
             const fileNameDisplay = document.querySelector(`.file-name-display[data-id="${id}FileName"]`);
+
             if (!file) {
-                delete currentLoadedAssets[id]; 
-                if (fileNameDisplay) {
-                    fileNameDisplay.textContent = ''; 
-                }
+                delete currentLoadedAssets[id];
+                if (fileNameDisplay) fileNameDisplay.textContent = '';
                 drawCanvas();
                 return;
             }
             if (!file.type.startsWith('image/')) {
-                if (fileNameDisplay) {
-                    fileNameDisplay.textContent = '非图片文件!'; 
-                }
+                if (fileNameDisplay) fileNameDisplay.textContent = '非图片文件!';
                 alert('请选择一个有效的图片文件！');
                 return;
             }
 
-            if (fileNameDisplay) {
-                fileNameDisplay.textContent = file.name; 
-            }
+            if (fileNameDisplay) fileNameDisplay.textContent = file.name;
 
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = loadEvent => {
                 const img = new Image();
                 img.onload = () => {
-                    currentLoadedAssets[id] = img; 
+                    if (!activeContainer.isConnected) return;
+                    currentLoadedAssets[id] = img;
                     drawCanvas();
                 };
-                img.src = e.target.result;
+                img.src = loadEvent.target.result;
             };
             reader.readAsDataURL(file);
         });
     });
 
-    // 为“快捷按钮”绑定点击事件
-    document.querySelectorAll('#template-controls-container .quick-buttons button').forEach(button => {
+    // 快捷按钮
+    activeContainer.querySelectorAll('.quick-buttons button[data-target]').forEach(button => {
         button.addEventListener('click', () => {
-            const targetInput = document.querySelector(`.control[data-id="${button.dataset.target}"]`);
+            const targetInput = activeContainer.querySelector(`.control[data-id="${button.dataset.target}"]`);
             if (targetInput) {
                 targetInput.value = button.dataset.value;
-                // 手动触发 input 事件，以确保 drawCanvas 被调用
                 targetInput.dispatchEvent(new Event('input'));
             }
         });
     });
-    
-    // 为滑块（range input）同步显示数值
-    document.querySelectorAll('#template-controls-container input[type="range"].control').forEach(slider => {
-        const valueSpan = document.querySelector(`.control-value[data-id="${slider.dataset.id}Value"]`);
-        if (valueSpan) {
-            valueSpan.textContent = slider.value; // 初始化显示
-            slider.addEventListener('input', () => {
-                valueSpan.textContent = slider.value; // 滑动时更新
-            });
-        }
+
+    // 滑块数值显示
+    controlElements('input[type="range"].control').forEach(slider => {
+        const panel = slider.closest('fieldset');
+        const valueSpan = panel?.querySelector(`.control-value[data-id="${slider.dataset.id}Value"]`);
+        if (!valueSpan) return;
+        valueSpan.textContent = slider.value;
+        slider.addEventListener('input', () => { valueSpan.textContent = slider.value; });
     });
-    
-    // [新增] 为自定义图标上传按钮绑定事件监听器
-    const customIconUploader = document.getElementById('custom-icon-upload');
-    if (customIconUploader) {
-        customIconUploader.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file || !file.type.startsWith('image/')) {
-                // 如果用户没选文件或文件非图片，则不做任何事
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    // 1. 为新图标生成一个独一无二的 ID
-                    const timestamp = Date.now();
-                    const assetKey = `customIcon${timestamp}`;
-                    const controlId = `${assetKey}Toggle`;
-
-                    // 2. 将加载好的 Image 对象存入全局资源库
-                    currentLoadedAssets[assetKey] = img;
-
-                    // 3. 在“图标库”中创建这个新图标的 DOM 元素
-                    const availableDropzone = document.getElementById('available-icons-dropzone');
-                    const newIconDiv = document.createElement('div');
-                    newIconDiv.className = 'icon-option app-icon'; // 使用 app-icon 样式
-                    newIconDiv.dataset.target = controlId;
-                    newIconDiv.dataset.draggable = 'true';
-                    newIconDiv.draggable = true;
-                    // 使用 FileReader 读取的 Data URL 作为预览背景图
-                    newIconDiv.style.backgroundImage = `url(${e.target.result})`; 
-                    
-                    availableDropzone.appendChild(newIconDiv);
-
-                    // 4. 为这个新图标创建一个隐藏的复选框，用于控制其显示状态
-                    const newCheckbox = document.createElement('input');
-                    newCheckbox.type = 'checkbox';
-                    newCheckbox.className = 'control';
-                    newCheckbox.dataset.id = controlId;
-                    newCheckbox.style.display = 'none';
-                    // 将复选框添加到容器的某个地方（例如末尾）
-                    templateControlsContainer.appendChild(newCheckbox);
-
-                    // 5. [重要] 清空 input 的值，以便用户可以连续上传同一个文件
-                    event.target.value = null; 
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-    }
 }
 
 /**
- * 切换模板的核心函数。
- * 负责清理旧模板、加载新模板模块、注入 HTML、加载资源和绑定事件。
- * @param {string} templateName - 要加载的模板的文件夹名。
+ * 切换模板。
+ * @param {string} templateName 模板目录名
  */
 async function switchTemplate(templateName) {
+    currentTemplateModule = null;
+    randomPaymentBtn.disabled = true;
+    downloadBtn.disabled = true;
+    refreshStatusControls();
+    const newContainer = templateControlsContainer.cloneNode(false);
+    statusbarControlsContainer.replaceChildren();
     try {
-        // [核心修复] 清理旧的事件监听器，防止内存泄漏和功能错乱。
-        // 通过克隆并替换容器元素，可以移除所有附加在其上的事件监听器。
-        // 这是确保模板之间状态完全隔离的最可靠方法。
-        if (document.getElementById('template-controls-container')) {
-            const oldContainer = templateControlsContainer;
-            const newContainer = oldContainer.cloneNode(false); // false = 不克隆子元素
-            oldContainer.parentNode.replaceChild(newContainer, oldContainer);
-            templateControlsContainer = newContainer; // 更新全局引用到新的、干净的容器
-        }
+        templateControlsContainer.replaceWith(newContainer);
+        templateControlsContainer = newContainer;
+        newContainer.setAttribute('aria-busy', 'true');
 
         templateControlsContainer.innerHTML = `<p>正在加载模板: ${templateName}...</p>`;
 
-        // 1. 使用动态 import() 按需加载模板的 JS 模块
         const modulePath = `../templates/${templateName}/main.js`;
         const module = await import(modulePath);
-        currentTemplateModule = module;
+        if (!newContainer.isConnected) return;
         const template = module.template;
 
-        // 2. 将模板专属的 HTML 和通用的图标控件 HTML 组合并注入页面
+        // 注入模板控件 + 通用状态栏图标控件
         const templateSpecificHTML = template.getControlsHTML();
-        const finalHTML = templateSpecificHTML.replace(
+        newContainer.innerHTML = templateSpecificHTML.replace(
             '<!-- ICON_CONTROLS_PLACEHOLDER -->',
-            getGlobalIconControlsHTML()
+            buildStatusBarControlsHTML()
         );
-        templateControlsContainer.innerHTML = finalHTML;
+        const statusFields = newContainer.querySelector(':scope > [data-statusbar-controls]');
+        if (statusFields) statusbarControlsContainer.append(statusFields);
 
-        // 3. 根据模板主题（'day' 或 'night'），动态生成最终的图标资源路径
-        const theme = template.theme || 'day'; // 默认为白天主题
-        const themeSuffix = theme === 'night' ? 'nighi' : '';
-        const themedIconAssets = {};
-        for (const key in GLOBAL_ICON_DEFINITIONS) {
-            themedIconAssets[key] = GLOBAL_ICON_DEFINITIONS[key].replace('{themeSuffix}', themeSuffix);
-        }
+        // 按模板主题加载通用图标（白天/夜间）
+        const themeSuffix = template.theme === 'night' ? 'nighi' : '';
+        const assetsToLoad = { ...buildStatusIconAssets(themeSuffix), ...template.assets };
+        const assets = await loadAssets(assetsToLoad);
+        if (!newContainer.isConnected) return;
+        currentLoadedAssets = assets;
+        currentTemplateModule = module;
 
-        // 4. 合并通用资源和模板专属资源，然后异步加载所有图片
-        const assetsToLoad = { ...themedIconAssets, ...template.assets };
-        currentLoadedAssets = await loadAssets(assetsToLoad);
-        
-        // 5. 为新注入的 HTML 控件绑定所有通用的事件监听器
         bindControlListeners();
+        initializeBankPicker(newContainer);
+        initializeStatusBarControls(drawCanvas, selectedDevice);
 
-        // 6. 如果模板模块提供了专属的初始化函数，则执行它（用于处理拖拽等特殊交互）
-        if (module.initialize && typeof module.initialize === 'function') {
+        // 应用当前机型对应的图标预设
+        const device = selectedDevice();
+        applyStatusBarPreset(getDevicePreset(device, statusBarStyleSelect.value), device);
+
+        if (typeof module.initialize === 'function') {
             module.initialize(drawCanvas);
         }
 
-        // 7. 所有准备工作完成，执行第一次绘制
+        updateDeviceInfo();
+
+        // 等待字体加载后再绘制，避免文字使用后备字体
+        if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
+        }
+        if (!newContainer.isConnected) return;
         drawCanvas();
+        refreshStatusControls();
+        randomPaymentBtn.disabled = false;
+        downloadBtn.disabled = false;
 
     } catch (error) {
+        if (!newContainer.isConnected) return;
+        currentTemplateModule = null;
+        refreshStatusControls();
+        statusbarControlsContainer.replaceChildren();
         console.error(`加载模板 "${templateName}" 失败:`, error);
-        templateControlsContainer.innerHTML = `<p style="color: red;">加载模板失败，请检查浏览器控制台获取详细错误信息。</p>`;
+        templateControlsContainer.innerHTML = '<p style="color: red;">加载模板失败，请检查浏览器控制台获取详细错误信息。</p>';
+    } finally {
+        newContainer.setAttribute('aria-busy', 'false');
     }
 }
 
+// --- 事件绑定 ---
 
-// --- 应用程序初始化 ---
-
-// 1. 监听模板下拉选择框的 'change' 事件
-templateSelect.addEventListener('change', (e) => {
-    switchTemplate(e.target.value);
+templateSelect.addEventListener('change', event => {
+    switchTemplate(event.target.value);
 });
 
-// 2. 为下载按钮绑定 'click' 事件
+function resetStatusIcons() {
+    updateDeviceInfo();
+    refreshStatusControls();
+    if (!currentTemplateModule) return;
+    const device = selectedDevice();
+    applyStatusBarPreset(getDevicePreset(device, statusBarStyleSelect.value), device);
+    drawCanvas();
+}
+
+deviceSelect.addEventListener('change', resetStatusIcons);
+statusBarStyleSelect.addEventListener('change', resetStatusIcons);
+
+statusBarColorSelect.addEventListener('input', drawCanvas);
+batteryChargingCheckbox.addEventListener('input', drawCanvas);
+batteryPercentCheckbox.addEventListener('input', drawCanvas);
+
+resetStatusBarBtn.addEventListener('click', resetStatusIcons);
+
+randomStatusBarBtn.addEventListener('click', () => {
+    const device = selectedDevice();
+    batchControlChanges(() => {
+        applyStatusBarPreset(getRandomStatusPreset(device, statusBarStyleSelect.value), device);
+        const time = statusbarControlsContainer.querySelector('.control[data-id="time"]');
+        if (time) time.value = `${String(randomInt(7, 23)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}`;
+        const battery = statusbarControlsContainer.querySelector('.control[data-id="battery"]');
+        if (battery) {
+            battery.value = randomInt(18, 98);
+            battery.dispatchEvent(new Event('input'));
+        }
+        batteryChargingCheckbox.checked = Math.random() < 0.18;
+    });
+});
+
+randomPaymentBtn.addEventListener('click', () => {
+    batchControlChanges(() => randomizePaymentFields(templateControlsContainer));
+});
+
 downloadBtn.addEventListener('click', () => {
     if (!currentTemplateModule) {
-        alert("请先选择一个模板！");
+        alert('请先选择一个模板！');
         return;
     }
-    // 生成一个带日期和模板名的文件名，例如 "wechat-success-2025-10-23.png"
+
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    const fileName = `${templateSelect.value}-${year}-${month}-${day}.png`;
-    
-    // 创建一个临时的 a 标签来触发浏览器下载
+    const fileName = `${templateSelect.value}-${deviceSelect.value}-${year}-${month}-${day}.png`;
+
     const link = document.createElement('a');
-    link.download = fileName; 
+    link.download = fileName;
     link.href = canvas.toDataURL('image/png');
     link.click();
 });
 
-// 3. 页面首次加载时，自动加载下拉框中默认选中的模板
+// --- 启动 ---
+
+populateDeviceSelect();
+populateStatusBarStyleSelect();
+updateDeviceInfo();
 switchTemplate(templateSelect.value);

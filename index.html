@@ -8,8 +8,9 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="container controls">
-        <h1>参数设置</h1>
+    <main class="workspace">
+    <aside class="container settings" aria-labelledby="settings-heading">
+        <h2 id="settings-heading">&#x53c2;&#x6570;&#x8bbe;&#x7f6e;</h2>
         <div class="input-group">
             <label for="template-select">选择模板</label>
             <select id="template-select">
@@ -18,21 +19,72 @@
                 <option value="wechat-success-night">微信 - 支付成功 - 夜间</option>
                 <option value="alipay-success">支付宝 - 支付成功</option>
                 <option value="alipay-details">支付宝 - 账单详情</option>
+                <option value="unionpay-success">&#x4e91;&#x95ea;&#x4ed8; - &#x652f;&#x4ed8;&#x6210;&#x529f;</option>
+                <option value="unionpay-details">&#x4e91;&#x95ea;&#x4ed8; - &#x8d26;&#x5355;&#x8be6;&#x60c5;</option>
             </select>
         </div>
-        <div id="template-controls-container">
+
+        <fieldset>
+            <legend>机型与状态栏</legend>
+            <div class="input-group">
+                <label for="device-select">机型</label>
+                <select id="device-select"></select>
+                <p class="field-hint" id="device-info"></p>
+            </div>
+            <div class="input-group">
+                <label for="statusbar-style-select">状态栏样式</label>
+                <select id="statusbar-style-select"></select>
+            </div>
+            <div class="input-group">
+                <label for="statusbar-color-select">状态栏配色</label>
+                <select id="statusbar-color-select">
+                    <option value="auto">跟随模板</option>
+                    <option value="dark">深色（黑色图标）</option>
+                    <option value="light">浅色（白色图标）</option>
+                </select>
+            </div>
+            <div class="horizontal-controls-container">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="battery-charging">
+                    <label for="battery-charging">充电中</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="battery-percent">
+                    <label for="battery-percent">显示电量百分比</label>
+                </div>
+            </div>
+            <div class="quick-buttons">
+                <button type="button" id="reset-statusbar-btn">恢复机型默认图标</button>
+                <button type="button" id="random-statusbar-btn" disabled>&#x968f;&#x673a;&#x72b6;&#x6001;&#x680f;</button>
+            </div>
+        </fieldset>
+
+        <div id="statusbar-controls-container"></div>
+    </aside>
+
+    <section class="container controls" aria-labelledby="page-controls-heading">
+        <div class="panel-header">
+            <h1 id="page-controls-heading">&#x9875;&#x9762;&#x5185;&#x5bb9;</h1>
+            <div class="quick-buttons">
+                <button type="button" id="random-payment-btn" disabled>&#x968f;&#x673a;&#x652f;&#x4ed8;&#x9875;&#x9762;&#x5143;&#x7d20;</button>
+            </div>
+        </div>
+        <div id="template-controls-container" aria-busy="true">
             <p>正在加载模板...</p>
         </div>
-        <button id="download-btn">下载图片</button>
-    </div>
+    </section>
 
-    <div class="container preview">
-        <h2>效果预览</h2>
+    <section class="container preview" aria-labelledby="preview-heading">
+        <div class="panel-header">
+            <h2 id="preview-heading">&#x6548;&#x679c;&#x9884;&#x89c8;</h2>
+            <button type="button" id="download-btn" disabled>&#x4e0b;&#x8f7d;&#x56fe;&#x7247;</button>
+        </div>
         <canvas id="canvas"></canvas>
-    </div>
+    </section>
+    </main>
 
     <footer class="page-footer">
-        <p>Powered by <a href="https://github.com/YANXIAOXIH/MockScreen" target="_blank">MockScreen</a></p>
+        <p>Powered by <a href="https://github.com/zhaochengw/MockScreen" target="_blank" rel="noopener noreferrer">MockScreen</a></p>
     </footer>
     
     <script type="module" src="js/main.js"></script>

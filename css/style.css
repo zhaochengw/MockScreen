@@ -15,15 +15,71 @@
 }
 body {
     font-family: 'PingFang', -apple-system, sans-serif;
-    margin: 0; padding: 20px; background-color: var(--bg-color);
-    display: flex; justify-content: center; align-items: flex-start; gap: 30px; flex-wrap: wrap;
+    margin: 0;
+    padding: 16px;
+    background-color: var(--bg-color);
 }
-.container { background-color: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); }
-.controls { width: 400px; }
-.preview { width: 380px; text-align: center; }
+.workspace {
+    max-width: 1350px;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'settings' 'controls' 'preview';
+    align-items: start;
+    gap: 16px;
+}
+.container { min-width: 0; background-color: var(--container-bg); padding: 16px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); }
+.settings { grid-area: settings; }
+.controls { grid-area: controls; }
+.preview { grid-area: preview; text-align: center; }
+
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.panel-header h1, .panel-header h2 { margin: 0; font-size: 20px; text-align: start; }
+.panel-header .quick-buttons { margin: 0; }
+.settings > h2 { text-align: start; font-size: 20px; margin: 0 0 12px; }
+.settings fieldset { margin-inline: 0; padding: 10px; margin-bottom: 12px; }
+.settings :is(.input-group, .horizontal-controls-container) { margin-bottom: 10px; }
+.settings fieldset :is(.input-group, .status-icon-library):last-child { margin-bottom: 0; }
+.status-icon-library > summary { color: var(--text-color); cursor: pointer; font-size: 14px; }
+.status-icon-library > .input-group { margin-top: 8px; }
+
+@media (min-width: 760px) {
+    .workspace {
+        grid-template-columns: minmax(0, 1fr) minmax(270px, 36%);
+        grid-template-rows: auto 1fr;
+        grid-template-areas: 'settings preview' 'controls preview';
+    }
+    .preview {
+        position: sticky;
+        top: 16px;
+    }
+    #canvas {
+        --preview-width: auto;
+        max-height: max(160px, calc(100vh - 106px));
+        max-height: max(160px, calc(100dvh - 106px));
+    }
+}
+
+@media (min-width: 1000px) {
+    .workspace {
+        grid-template-columns: clamp(255px, 24vw, 310px) minmax(0, 1fr) clamp(290px, 28vw, 390px);
+        grid-template-rows: auto;
+        grid-template-areas: 'settings controls preview';
+    }
+    .settings {
+        position: sticky;
+        top: 16px;
+        box-sizing: border-box;
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
+        overflow-y: auto;
+    }
+}
 h1, h2 { text-align: center; color: var(--theme-color); margin-top: 0; font-weight: 600; }
 .input-group { margin-bottom: 18px; }
 .input-group label { display: block; margin-bottom: 6px; color: var(--text-color); font-weight: 500; font-size: 14px; }
+.field-hint { margin: 6px 0 0; font-size: 12px; color: #8a94a6; }
+.field-hint-inline { font-weight: normal; font-size: 12px; color: #98a2b3; margin-left: 6px; }
 .input-group input[type="text"], .input-group input[type="time"], .input-group select, .input-group textarea {
     width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 16px; font-family: inherit;
 }
@@ -42,10 +98,11 @@ h1, h2 { text-align: center; color: var(--theme-color); margin-top: 0; font-weig
 .quick-buttons { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .quick-buttons button { background-color: #e9ecef; color: #495057; border: 1px solid #ced4da; padding: 5px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; width: auto; margin-top: 0; font-weight: normal; box-shadow: none; }
 .quick-buttons button:hover { background-color: #d6d8db; }
-#download-btn { width: 100%; padding: 12px; background-color: var(--success-color); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: background-color 0.2s; }
-#download-btn:hover { background-color: #218838; }
-#canvas { border: 1px solid var(--border-color); width: 100%; height: auto; border-radius: 8px; }
-fieldset { border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+#download-btn { padding: 7px 12px; background-color: var(--success-color); color: white; border: none; border-radius: 6px; font: inherit; font-size: 14px; cursor: pointer; transition: background-color 0.2s; }
+#download-btn:hover:not(:disabled) { background-color: #218838; }
+#download-btn:disabled, .quick-buttons button:disabled { opacity: 0.5; cursor: default; }
+#canvas { display: block; box-sizing: border-box; border: 1px solid var(--border-color); width: var(--preview-width, 100%); max-width: 100%; height: auto; margin-inline: auto; border-radius: 8px; }
+fieldset { min-inline-size: 0; border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
 /* `.template-controls` 相关的样式不再需要，因为我们是动态替换内容 */
 /* =============================================== */
 /*  [新增] 统一输入框样式
@@ -124,7 +181,10 @@ textarea.control:focus {
     border-radius: 8px;
 }
 
-.statusbar-icon-selector .icon-option {
+.icon-option {
+    border: 0;
+    padding: 0;
+    flex: 0 0 31px;
     width: 31px;
     height: 31px;
     border-radius: 6px;
@@ -142,18 +202,18 @@ textarea.control:focus {
 /* 
   第三方应用图标的覆盖样式 
 */
-.statusbar-icon-selector .icon-option.app-icon {
+.icon-option.app-icon {
     background-size: 100%; /* 或者使用 cover，让图标完全填满容器 */
     border-radius: 8px;    /* 可以为第三方图标设置一个稍大的圆角，使其看起来更像App图标 */
 }
 
-.statusbar-icon-selector .icon-option:hover {
+.icon-option:hover {
     background-color: #009dff;
     
 }
 
 /* “开启”状态：不透明，有高亮背景 */
-.statusbar-icon-selector .icon-option.active {
+.icon-option.active {
     opacity: 1;
     background-color: var(--theme-color); /* 使用主题蓝色 */
     /* 让白色图标在蓝色背景上可见 */
@@ -174,24 +234,72 @@ textarea.control:focus {
 .icon-sub-dropzone {
     display: flex;
     flex-wrap: wrap; /* 允许图标换行 */
+    flex: 1 1 0;      /* 左右两侧各占一半宽度 */
     gap: 10px;
     min-height: 31px; /* 确保空的时候也有高度和可点击区域 */
-    min-width: 350px;  /* 确保空的时候有宽度 */
+    min-width: 0;
     padding: 4px;
     border: 2px dashed transparent; /* 默认透明边框 */
     border-radius: 6px;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-/* 可用图标库样式 */
-.is-available-dropzone {
+/* 右侧图标与状态栏右侧对齐 */
+#right-icons-dropzone {
+    justify-content: flex-end;
+}
+
+/* 图标库分组 */
+.library-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.library-header label {
+    margin-bottom: 0;
+}
+
+.icon-library {
     background-color: #e9ecef;
     border: 1px solid #ced4da;
-    padding: 8px;
-    gap: 10px;
     border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.icon-group + .icon-group {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #cfd4da;
+}
+
+.icon-group-title {
+    font-size: 12px;
+    color: #6c757d;
+    margin-bottom: 6px;
+}
+
+.icon-group-items {
     display: flex;
     flex-wrap: wrap;
+    gap: 10px;
+    min-height: 31px;
+    padding: 2px;
+    border: 2px dashed transparent;
+    border-radius: 6px;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.icon-group-items.drag-over {
+    border-color: var(--theme-color);
+    background-color: #e7f3ff;
+}
+
+/* 矢量图标预览 */
+.icon-option.icon-vector {
+    background-size: 62%;
+    background-color: #009dff;
 }
 
 /* 当有图标拖拽到放置区域上方时，高亮边框作为视觉反馈 */
@@ -202,55 +310,50 @@ textarea.control:focus {
 }
 
 /* --- 系统Ios原生图标 --- */
-.statusbar-icon-selector .icon-Ioslocat { background-image: url('../icons/IoslocatIcon.png'); }
-.statusbar-icon-selector .icon-Iosalarm    { background-image: url('../icons/IosalarmIcon.png'); }
-.statusbar-icon-selector .icon-Iosbell     { background-image: url('../icons/IosBellIcon.png'); }
-.statusbar-icon-selector .icon-Iosuser     { background-image: url('../icons/IosuserIcon.png'); }
-.statusbar-icon-selector .icon-Iossleep    { background-image: url('../icons/IossleepIcon.png'); }
-.statusbar-icon-selector .icon-Ioswifi     { background-image: url('../icons/IosWifiIcon.png'); }
-.statusbar-icon-selector .icon-Iosltea      { background-image: url('../icons/IoslteaIcon.png'); }
-.statusbar-icon-selector .icon-Ioslteb      { background-image: url('../icons/IosltebIcon.png'); }
-.statusbar-icon-selector .icon-Ioslte5Ga      { background-image: url('../icons/Ioslte5GaIcon.png'); }
+.icon-Ioslocat { background-image: url('../icons/IoslocatIcon.png'); }
+.icon-Iosalarm    { background-image: url('../icons/IosalarmIcon.png'); }
+.icon-Iosbell     { background-image: url('../icons/IosBellIcon.png'); }
+.icon-Iosuser     { background-image: url('../icons/IosuserIcon.png'); }
+.icon-Iossleep    { background-image: url('../icons/IossleepIcon.png'); }
+.icon-Ioswifi     { background-image: url('../icons/IosWifiIcon.png'); }
+.icon-Iosltea      { background-image: url('../icons/IoslteaIcon.png'); }
+.icon-Ioslteb      { background-image: url('../icons/IosltebIcon.png'); }
+.icon-Ioslte5Ga      { background-image: url('../icons/Ioslte5GaIcon.png'); }
 
 
 /* --- 系统原生图标 --- */
-.statusbar-icon-selector .icon-chat  { background-image: url('../icons/chatIcon.png'); }
-.statusbar-icon-selector .icon-wifia     { background-image: url('../icons/WifiArrowIcon.png'); }
-.statusbar-icon-selector .icon-lte4Ga      { background-image: url('../icons/lte4GaIcon.png'); }
-.statusbar-icon-selector .icon-lte4Gb      { background-image: url('../icons/lte4GbIcon.png'); }
-.statusbar-icon-selector .icon-lte3G      { background-image: url('../icons/lte3GIcon.png'); }
-.statusbar-icon-selector .icon-lte5Gb      { background-image: url('../icons/lte5GbIcon.png'); }
-.statusbar-icon-selector .icon-Phone      { background-image: url('../icons/PhoneIcon.png'); }
-.statusbar-icon-selector .icon-Alipay { background-image: url('../icons/AlipayIcon.png'); }
-.statusbar-icon-selector .icon-Taobao { background-image: url('../icons/TaobaoIcon.png'); }
-.statusbar-icon-selector .icon-Wechat { background-image: url('../icons/WechatIcon.png'); }
-.statusbar-icon-selector .icon-Weibo { background-image: url('../icons/WeiboIcon.png'); }
-.statusbar-icon-selector .icon-Zhihu { background-image: url('../icons/ZhihuIcon.png'); }
+.icon-chat  { background-image: url('../icons/chatIcon.png'); }
+.icon-wifia     { background-image: url('../icons/WifiArrowIcon.png'); }
+.icon-lte4Ga      { background-image: url('../icons/lte4GaIcon.png'); }
+.icon-lte4Gb      { background-image: url('../icons/lte4GbIcon.png'); }
+.icon-lte3G      { background-image: url('../icons/lte3GIcon.png'); }
+.icon-lte5Gb      { background-image: url('../icons/lte5GbIcon.png'); }
+.icon-Phone      { background-image: url('../icons/PhoneIcon.png'); }
+.icon-Alipay { background-image: url('../icons/AlipayIcon.png'); }
+.icon-Taobao { background-image: url('../icons/TaobaoIcon.png'); }
+.icon-Wechat { background-image: url('../icons/WechatIcon.png'); }
+.icon-Weibo { background-image: url('../icons/WeiboIcon.png'); }
+.icon-Zhihu { background-image: url('../icons/ZhihuIcon.png'); }
 
 /* --- 第三方应用图标 --- */
-.statusbar-icon-selector .icon-12306 { background-image: url('../icons/radius/12306Icon.png'); }
-.statusbar-icon-selector .icon-163music { background-image: url('../icons/radius/163musicIcon.png'); }
-.statusbar-icon-selector .icon-alidrive { background-image: url('../icons/radius/AlidriveIcon.png'); }
-.statusbar-icon-selector .icon-atuin { background-image: url('../icons/radius/AtuinIcon.png'); }
-.statusbar-icon-selector .icon-baidu { background-image: url('../icons/radius/BaiduIcon.png'); }
-.statusbar-icon-selector .icon-baidudrivea { background-image: url('../icons/radius/BaidudriveaIcon.png'); }
-.statusbar-icon-selector .icon-baidudriveb { background-image: url('../icons/radius/BaidudrivebIcon.png'); }
-.statusbar-icon-selector .icon-bilibili { background-image: url('../icons/radius/BilibiliIcon.png'); }
-.statusbar-icon-selector .icon-chrome { background-image: url('../icons/radius/ChromeIcon.png'); }
-.statusbar-icon-selector .icon-doubao { background-image: url('../icons/radius/DoubaoIcon.png'); }
-.statusbar-icon-selector .icon-dsvideo { background-image: url('../icons/radius/DsvideoIcon.png'); }
-.statusbar-icon-selector .icon-edge { background-image: url('../icons/radius/EdgeIcon.png'); }
-.statusbar-icon-selector .icon-flclash { background-image: url('../icons/radius/FlclashIcon.png'); }
-.statusbar-icon-selector .icon-google { background-image: url('../icons/radius/GoogleIcon.png'); }
-.statusbar-icon-selector .icon-googlecloud { background-image: url('../icons/radius/GooglecloudIcon.png'); }
-.statusbar-icon-selector .icon-googledrive { background-image: url('../icons/radius/GoogledriveIcon.png'); }
-.statusbar-icon-selector .icon-googlemap { background-image: url('../icons/radius/GooglemapIcon.png'); }
-.statusbar-icon-selector .icon-iptv { background-image: url('../icons/radius/IptvIcon.png'); }
-.statusbar-icon-selector .icon-kmplayer { background-image: url('../icons/radius/KmplayerIcon.png'); }
-.statusbar-icon-selector .icon-miwifi { background-image: url('../icons/radius/MiwifiIcon.png'); }
-.statusbar-icon-selector .icon-office { background-image: url('../icons/radius/OfficeIcon.png'); }
-.statusbar-icon-selector .icon-onedev { background-image: url('../icons/radius/OnedevIcon.png'); }
-.statusbar-icon-selector .icon-palworld { background-image: url('../icons/radius/PalworldIcon.png'); }
+.icon-12306 { background-image: url('../icons/radius/12306Icon.png'); }
+.icon-163music { background-image: url('../icons/radius/163musicIcon.png'); }
+.icon-alidrive { background-image: url('../icons/radius/AlidriveIcon.png'); }
+.icon-atuin { background-image: url('../icons/radius/AtuinIcon.png'); }
+.icon-baidu { background-image: url('../icons/radius/BaiduIcon.png'); }
+.icon-baidudrivea { background-image: url('../icons/radius/BaidudriveaIcon.png'); }
+.icon-baidudriveb { background-image: url('../icons/radius/BaidudrivebIcon.png'); }
+.icon-bilibili { background-image: url('../icons/radius/BilibiliIcon.png'); }
+.icon-doubao { background-image: url('../icons/radius/DoubaoIcon.png'); }
+.icon-dsvideo { background-image: url('../icons/radius/DsvideoIcon.png'); }
+.icon-edge { background-image: url('../icons/radius/EdgeIcon.png'); }
+.icon-flclash { background-image: url('../icons/radius/FlclashIcon.png'); }
+.icon-iptv { background-image: url('../icons/radius/IptvIcon.png'); }
+.icon-kmplayer { background-image: url('../icons/radius/KmplayerIcon.png'); }
+.icon-miwifi { background-image: url('../icons/radius/MiwifiIcon.png'); }
+.icon-office { background-image: url('../icons/radius/OfficeIcon.png'); }
+.icon-onedev { background-image: url('../icons/radius/OnedevIcon.png'); }
+.icon-palworld { background-image: url('../icons/radius/PalworldIcon.png'); }
 
 
 /* =============================================== */
@@ -319,3 +422,25 @@ textarea.control:focus {
     max-width: 200px; /* 限制最大宽度 */
     vertical-align: middle; /* 与按钮垂直对齐 */
 }
+
+.icon-option[hidden], .icon-group[hidden] {
+    display: none;
+}
+
+.merchant-preset {
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+}
+
+.merchant-preset img {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.bank-picker { margin-top: 10px; color: var(--text-color); font-size: 14px; }
+.bank-picker summary { cursor: pointer; }
+.bank-picker .bank-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.bank-picker button[aria-pressed="true"] { border-color: var(--theme-color); color: #0056b3; background: #e7f3ff; }
+.control::placeholder { color: #757b84; opacity: 1; }
